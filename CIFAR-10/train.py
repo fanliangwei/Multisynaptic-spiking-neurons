@@ -265,7 +265,7 @@ parser.add_argument('--no-prefetcher', action='store_true', default=False,
                     help='disable fast prefetcher')
 parser.add_argument('--output', default='', type=str, metavar='PATH',
                     help='path to output folder (default: none, current dir)')
-parser.add_argument('--experiment', default='snn_MHSANet29_32w_4s-t1-D4-mem_up_MSF-thre1.0-surro(rectangular)-amp', type=str, metavar='NAME',
+parser.add_argument('--experiment', default='snn_MHSANet29_32w_4s-t1-D4-mem_up_MSF-init_thre1.0-surro(rectangular)-amp', type=str, metavar='NAME',
                     help='name of train experiment, name of sub-folder for output')
 parser.add_argument('--eval-metric', default='top1', type=str, metavar='EVAL_METRIC',
                     help='Best metric (default: "top1"')
