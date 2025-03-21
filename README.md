@@ -43,17 +43,27 @@ ImageNet with the following folder structure
 
 Detection:
 
-### 2. Model Training
-Example for the recognition task on CIFAR-10:
+### 2. Model Training and Testing
+#### Example for the recognition task on CIFAR-10:
+Training:
 ```
 cd CIFAR-10
 python train.py
 ```
+Testing:
+Download the trained model first [MHSANet-29](https://drive.google.com/file/d/1qdX1wh_1ywvYRDFsgbGkKrzkkHuKBZXi/view?usp=drive_link)
+```
+cd CIFAR-10
+python test.py
+```
 Example for the recognition task on ImageNet-1k:
 ```
+Training:
 cd imagenet
 python -m torch.distributed.launch --nproc_per_node=8 train.py
+
 ```
+
 
 
 ## Acknowledgement
