@@ -16,6 +16,7 @@ This code implements the MSF neurons for various tasks. We select some typical t
 | Sleep-EDF-18         | [Sleep-EDF-18 Dataset](https://www.physionet.org/content/sleep-edfx/1.0.0/)                           |
 ## ⚙️ Prerequisites
 Python >=3.8
+torch==1.11.0
 cupy==12.3.0
 spikingjelly==0.0.0.0.12
 timm==0.9.16
@@ -56,12 +57,11 @@ Download the trained model first [MHSANet-29](https://drive.google.com/file/d/1q
 cd CIFAR-10
 python test.py
 ```
-Example for the recognition task on ImageNet-1k:
-```
+#### Example for the recognition task on ImageNet-1k:
 Training:
+```
 cd imagenet
 python -m torch.distributed.launch --nproc_per_node=8 train.py
-
 ```
 
 
