@@ -104,7 +104,7 @@ parser.add_argument('-vb', '--val-batch-size', type=int, default=16, metavar='N'
 
 # Test or resume
 parser.add_argument('--resume',
-                    default='/mnt/nvme1n1/NCS-code/recognition/CIFAR-10/output/train/snn_MHSANet29_32w_4s-t1-D4-mem_up_MSF-thre1.0-surro(rectangular)-amp/model_best.pth.tar',
+                    default='output/train/snn_MHSANet29_32w_4s-t1-D4-mem_up_MSF-init_thre1.0-surro(rectangular)-amp/model_best.pth.tar',
                     type=str, metavar='PATH',
                     help='Test model / Resume full model and optimizer state from checkpoint (default: none)')
 parser.add_argument('--no-resume-opt', action='store_true', default=True,
@@ -265,7 +265,7 @@ parser.add_argument('--no-prefetcher', action='store_true', default=False,
                     help='disable fast prefetcher')
 parser.add_argument('--output', default='', type=str, metavar='PATH',
                     help='path to output folder (default: none, current dir)')
-parser.add_argument('--experiment', default='snn_MHSANet29_32w_4s-t1-D4-mem_up_MSF-thre1.0-surro(rectangular)-amp', type=str, metavar='NAME',
+parser.add_argument('--experiment', default='snn_MHSANet29_32w_4s-t1-D4-mem_up_MSF-init_thre1.0-surro(rectangular)-amp', type=str, metavar='NAME',
                     help='name of train experiment, name of sub-folder for output')
 parser.add_argument('--eval-metric', default='top1', type=str, metavar='EVAL_METRIC',
                     help='Best metric (default: "top1"')
