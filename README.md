@@ -8,6 +8,7 @@ This code implements the MSF neurons for various tasks. We select some typical t
 |--------------|-------------------------------------------------------------------------------------------|
 | CIFAR         | [CIFAR Dataset](https://www.cs.toronto.edu/~kriz/cifar.html)                           |
 | ImageNet-1k         | [ImageNet Dataset](https://www.image-net.org/)                           |
+| CIFAR10-DVS         | [CIFAR10-DVS Dataset](https://figshare.com/articles/dataset/CIFAR10-DVS_New/4724671)                           |
 | COCO2017         | [COCO Dataset](https://cocodataset.org/#home)                           |
 | Gen1         | [Gen1 Dataset](https://www.prophesee.ai/2020/01/24/prophesee-gen1-automotive-detection-dataset/)    
 | SHD    | [Spiking Heidelberg Datasets](https://zenkelab.org/resources/spiking-heidelberg-datasets-shd/) |
@@ -55,6 +56,18 @@ Testing:
 Download the trained model first [MHSANet-29](https://drive.google.com/file/d/1qdX1wh_1ywvYRDFsgbGkKrzkkHuKBZXi/view?usp=drive_link)
 ```
 cd CIFAR-10
+python test.py
+```
+#### Example for the event-based recognition task on CIFAR10-DVS:
+Training:
+```
+cd CIFAR10-DVS
+python train.py
+```
+Testing:
+Download the trained model first [MHSANet-29](https://drive.google.com/file/d/1AZERB26duCkn1tDH6hdWfu2PpC4V2-rs/view?usp=drive_link)
+```
+cd CIFAR10-DVS
 python test.py
 ```
 #### Example for the recognition task on ImageNet-1k:
