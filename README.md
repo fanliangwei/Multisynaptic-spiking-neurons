@@ -76,6 +76,9 @@ Training:
 cd imagenet
 python -m torch.distributed.launch --nproc_per_node=8 train.py
 ```
+#### Example for the detection task on COCO:
+Testing:
+Download the trained model first [MHSANet-50](https://drive.google.com/file/d/1z-un-cHV1up_AWnRHgzE5HY84OZM5bCQ/view?usp=drive_link)
 
 
 
