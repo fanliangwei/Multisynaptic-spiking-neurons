@@ -98,11 +98,14 @@ python test.py
 Training:
 ```
 cd coco
-python tools/train.py -f 'exps/default/yolo_l_snn_' -b 64 -d 8 --fp16
+python tools/train.py --fp16
 ```
 Testing:
 Download the trained model first [MHSANet-50](https://drive.google.com/file/d/1z-un-cHV1up_AWnRHgzE5HY84OZM5bCQ/view?usp=drive_link)
-
+```
+cd coco
+python tools/eval.py --test
+```
 
 
 ## Acknowledgement
