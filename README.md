@@ -44,6 +44,19 @@ ImageNet with the following folder structure
 ```
 
 Detection:
+COCO with the following folder structure
+```
+│COCO2017/
+├──train2017/
+│  ├── 000000000009.JPEG
+│  ├── ......
+├──val2017/
+│  ├── 000000000139.JPEG
+│  ├── ......
+├──annotations/
+│  ├── instances_train2017.JSON
+│  ├── instances_val2017.JSON
+```
 
 ### 2. Model Training and Testing
 #### Example for the recognition task on CIFAR-10:
@@ -76,7 +89,17 @@ Training:
 cd imagenet
 python -m torch.distributed.launch --nproc_per_node=8 train.py
 ```
+Testing:
+```
+cd imagenet
+python test.py
+```
 #### Example for the detection task on COCO:
+Training:
+```
+cd coco
+python tools/train.py -f 'exps/default/yolo_l_snn_' -b 64 -d 8 --fp16
+```
 Testing:
 Download the trained model first [MHSANet-50](https://drive.google.com/file/d/1z-un-cHV1up_AWnRHgzE5HY84OZM5bCQ/view?usp=drive_link)
 
