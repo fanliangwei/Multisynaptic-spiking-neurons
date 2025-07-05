@@ -44,7 +44,7 @@ def parse_args():
     parser.add_argument('--dataset', default='cifar10dvs', help='dataset')
     parser.add_argument('--num-classes', type=int, default=10, metavar='N',
                         help='number of label classes (default: 1000)')
-    parser.add_argument('--data-path', default='/mnt/nvme1n1/datasets/dvs-cifar10/', help='dataset')
+    parser.add_argument('--data-path', default='./dvs-cifar10/', help='dataset')
     parser.add_argument('--device', default='cuda', help='device')
     parser.add_argument('-b', '--batch-size', default=16, type=int) #default:16
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
@@ -296,7 +296,9 @@ def load_data(dataset_dir, distributed, T):
 
     st = time.time()
 
+    os.makedirs(dataset_dir, exist_ok=True)
     origin_set = cifar10_dvs.CIFAR10DVS(root=dataset_dir, data_type='frame', frames_number=T, split_by='number')
+
     dataset_train, dataset_test = split_to_train_test_set(0.9, origin_set, 10)
     print("Took", time.time() - st)
 
