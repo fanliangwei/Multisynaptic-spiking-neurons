@@ -52,7 +52,7 @@ def parse_args():
 
     parser.add_argument('--print-freq', default=256, type=int, help='print frequency')
     parser.add_argument('--output-dir', default='./output', help='path where to save')
-    parser.add_argument('--resume', default='/home/work/Multisynaptic-spiking-neurons-main/CIFAR10-DVS/checkpoint_max_test_acc1.pth', help='resume from checkpoint')
+    parser.add_argument('--resume', default='./logs/snn_MHSANet29_32w_4s_mem_up_MSF-init_thre1.0-D4-surro(rectangular)/checkpoint_max_test_acc1.pth', help='resume from checkpoint')
 
     parser.add_argument(
         "--sync-bn",
