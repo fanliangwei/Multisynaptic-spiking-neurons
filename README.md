@@ -15,12 +15,16 @@ This code implements the MSF neurons for various tasks. We select some typical t
 | DEAP         | [DEAP Dataset](https://www.eecs.qmul.ac.uk/mmv/datasets/deap/)                           |
 | MMIDB    | [MMIDB Dataset](https://physionet.org/content/eegmmidb/1.0.0/) |
 | Sleep-EDF-18         | [Sleep-EDF-18 Dataset](https://www.physionet.org/content/sleep-edfx/1.0.0/)                           |
-## ⚙️ Prerequisites
-Python >=3.8
-torch==1.11.0
-cupy==12.3.0
-spikingjelly==0.0.0.0.12
-timm==0.9.16
+## ⚙️ Environment Setup
+In the author's practice, the virtual environment (e.g. Anaconda) is recommended.
+```
+conda create -n MSF python=3.10
+conda activate MSF
+```
+Install the dependencies in requirements.txt:
+```
+pip install -r requirements.txt
+```
 ## 🚀 Quick Start
 ### 1. Data Preprocessing
 
