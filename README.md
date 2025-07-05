@@ -71,7 +71,7 @@ cd CIFAR-10
 python train.py
 ```
 Testing:
-Download the trained model first [MHSANet-29](https://drive.google.com/file/d/1qdX1wh_1ywvYRDFsgbGkKrzkkHuKBZXi/view?usp=drive_link)
+Download the trained model first [MHSANet-29](https://drive.google.com/file/d/1UUUEasZL70CjyWWPedWE1n6XTwHVChrb/view?usp=drive_link)
 ```
 cd CIFAR-10
 python test.py
