@@ -75,7 +75,7 @@ parser.add_argument('--input-size', default=None, nargs=3, type=int,
                     help='Input all image dimensions (d h w, e.g. --input-size 3 224 224), uses model default if empty')
 
 # Dataset / Model parameters
-parser.add_argument('-data-dir', metavar='DIR',default="/mnt/nvme1n1/cifar10/",
+parser.add_argument('-data-dir', metavar='DIR',default="./cifar10",
                     help='path to dataset') 
 parser.add_argument('--dataset', '-d', metavar='NAME', default='torch/cifar10',
                     help='dataset type (default: ImageFolder/ImageTar if empty)')

@@ -73,7 +73,7 @@ parser.add_argument('--input-size', default=None, nargs=3, type=int,
                     help='Input all image dimensions (d h w, e.g. --input-size 3 224 224), uses model default if empty')
 
 # Dataset / Model parameters
-parser.add_argument('-data-dir', metavar='DIR', default="/mnt/nvme1n1/cifar10/",
+parser.add_argument('-data-dir', metavar='DIR', default="./cifar10",
                     help='path to dataset')
 parser.add_argument('--dataset', '-d', metavar='NAME', default='torch/cifar10',
                     help='dataset type (default: ImageFolder/ImageTar if empty)')
@@ -104,7 +104,7 @@ parser.add_argument('-vb', '--val-batch-size', type=int, default=16, metavar='N'
 
 # Test or resume
 parser.add_argument('--resume',
-                    default='output/train/snn_MHSANet29_32w_4s-t1-D4-mem_up_MSF-init_thre1.0-surro(rectangular)-amp/model_best.pth.tar',
+                    default='/home/work/Multisynaptic-spiking-neurons-main/CIFAR-10/model_best.pth.tar',
                     type=str, metavar='PATH',
                     help='Test model / Resume full model and optimizer state from checkpoint (default: none)')
 parser.add_argument('--no-resume-opt', action='store_true', default=True,
@@ -464,7 +464,7 @@ def main():
     dataset_train = create_dataset(
         args.dataset,
         root=args.data_dir, split=args.train_split, is_training=True,
-        batch_size=args.batch_size, repeats=args.epoch_repeats)
+        batch_size=args.batch_size, repeats=args.epoch_repeats, download=True)
     dataset_eval = create_dataset(
         args.dataset, root=args.data_dir, split=args.val_split, is_training=False, batch_size=args.batch_size)
 
