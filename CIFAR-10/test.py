@@ -104,7 +104,7 @@ parser.add_argument('-vb', '--val-batch-size', type=int, default=16, metavar='N'
 
 # Test or resume
 parser.add_argument('--resume',
-                    default='/home/work/Multisynaptic-spiking-neurons-main/CIFAR-10/model_best.pth.tar',
+                    default='./output/train/snn_MHSANet29_32w_4s-t1-D4-mem_up_MSF-init_thre1.0-surro(rectangular)-amp/model_best.pth.tar',
                     type=str, metavar='PATH',
                     help='Test model / Resume full model and optimizer state from checkpoint (default: none)')
 parser.add_argument('--no-resume-opt', action='store_true', default=True,
