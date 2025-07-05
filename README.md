@@ -25,6 +25,7 @@ Install the dependencies in requirements.txt:
 ```
 pip install -r requirements.txt
 ```
+This work was developed and trained using the above environment configuration, and it is recommended to use the same setup for reproduction. The code also supports newer versions of Python and PyTorch.
 ## 🚀 Quick Start
 ### 1. Data Preprocessing
 
