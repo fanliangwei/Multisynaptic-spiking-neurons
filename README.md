@@ -114,7 +114,7 @@ python tools/eval.py --test
 
 
 ## Acknowledgement
-Related project:
+This implementation is built upon the wonderful works of [pytorch-image-models](https://github.com/rwightman/pytorch-image-models) and [YOLOX](https://github.com/Megvii-BaseDetection/YOLOX). We sincerely thank the authors for their excellent contributions and for sharing their code with the community.
 
 
 
