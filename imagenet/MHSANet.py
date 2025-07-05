@@ -17,12 +17,14 @@ from attention import CSA
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-thresh = 1.0
+thresh = 1.0  # Default firing threshold
 
 class ActFun(torch.autograd.Function):
+    """Custom activation function for LIF neurons"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, thresh=1.0, alpha=0.5):
+        # Step function for spike generation
         ctx.save_for_backward(input)
         ctx.thresh = thresh
         ctx.alpha = alpha
@@ -31,6 +33,7 @@ class ActFun(torch.autograd.Function):
     @staticmethod
     @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
+        # Rectangular surrogate gradient for backward pass
         (input,) = ctx.saved_tensors
         thresh = ctx.thresh
         alpha = ctx.alpha
@@ -43,7 +46,7 @@ def act_fun(input, thresh=1.0, alpha=0.5):
     return ActFun.apply(input, thresh, alpha)
 
 class mem_update(nn.Module):
-    # LIF Layer
+    """LIF (Leaky Integrate-and-Fire) Layer implementation"""
     def __init__(self, decay=0.25, thresh=1.0, alpha=0.5):
         super(mem_update, self).__init__()
         self.decay = decay
@@ -58,6 +61,7 @@ class mem_update(nn.Module):
         mem_old = 0
         for i in range(time_window):
             if i >= 1:
+                # Update membrane potential
                 mem = mem_old * self.decay * (1 - spike.detach()) + x[i]
             else:
                 mem = x[i]
@@ -66,23 +70,28 @@ class mem_update(nn.Module):
             output[i] = spike
         return output
 
-
+# Surrogate gradient functions
 def g_window(x,alpha):
+    """Rectangular surrogate gradient"""
     temp = abs(x) < alpha
     return temp / (2 * alpha)
 
 def g_sigmoid(x,alpha):
+    """Sigmoid surrogate gradient"""
     sgax = (alpha*x).sigmoid()
     return alpha * (1-sgax) * sgax
 
 def g_atan(x,alpha):
+    """Arctangent surrogate gradient"""
     return alpha / (2 * (1 + ((np.pi / 2) * alpha * x)**2))
 
 def g_gaussian(x,alpha):
+    """Gaussian surrogate gradient"""
     return (1 / np.sqrt(2 * np.pi * alpha**2)) * torch.exp(-x**2 / (2 * alpha**2))
 
-
+# Multi-synaptic activation functions
 class ActFun_rectangular(torch.autograd.Function):
+    """Multi-synaptic activation function with rectangular surrogate gradient"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, init_thre=1.0, D=4, alpha=0.5):
@@ -91,6 +100,7 @@ class ActFun_rectangular(torch.autograd.Function):
         ctx.D = D
         ctx.alpha = alpha
         
+        # Create multiple firing thresholds
         thresholds = torch.arange(D, device=input.device).float() + init_thre
         out = input.ge(thresholds[0]).float() + input.ge(thresholds[1]).float() + input.ge(thresholds[2]).float() + input.ge(thresholds[3]).float()
         return out
@@ -107,12 +117,13 @@ class ActFun_rectangular(torch.autograd.Function):
         thresholds = torch.arange(D, device=input.device).float() + init_thre
         grad_x = grad_input * (g_window(input-thresholds[0],alpha)+g_window(input-(thresholds[1]),alpha)+g_window(input-(thresholds[2]),alpha)+g_window(input-(thresholds[3]),alpha))
  
-        return grad_x, None, None    
+        return grad_x, None, None, None
 
 def act_fun_rectangular(input, init_thre=1.0, D=4, alpha=0.5):
     return ActFun_rectangular.apply(input, init_thre, D, alpha)
 
 class ActFun_sigmoid(torch.autograd.Function):
+    """Multi-synaptic activation function with sigmoid surrogate gradient"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, init_thre=1.0, D=4, alpha=4.0):
@@ -137,12 +148,13 @@ class ActFun_sigmoid(torch.autograd.Function):
         thresholds = torch.arange(D, device=input.device).float() + init_thre
         grad_x = grad_input * (g_sigmoid(input-thresholds[0],alpha)+g_sigmoid(input-thresholds[1],alpha)+g_sigmoid(input-thresholds[2],alpha)+g_sigmoid(input-thresholds[3],alpha))
  
-        return grad_x, None, None    
+        return grad_x, None, None, None
     
 def act_fun_sigmoid(input, init_thre=1.0, D=4, alpha=4.0):
     return ActFun_sigmoid.apply(input, init_thre, D, alpha)
 
 class ActFun_atan(torch.autograd.Function):
+    """Multi-synaptic activation function with arctangent surrogate gradient"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, init_thre=1.0, D=4, alpha=2.0):
@@ -167,12 +179,13 @@ class ActFun_atan(torch.autograd.Function):
         thresholds = torch.arange(D, device=input.device).float() + init_thre
         grad_x = grad_input * (g_atan(input-thresholds[0],alpha)+g_atan(input-thresholds[1],alpha)+g_atan(input-thresholds[2],alpha)+g_atan(input-thresholds[3],alpha))
  
-        return grad_x, None, None    
+        return grad_x, None, None, None
     
 def act_fun_atan(input, init_thre=1.0, D=4, alpha=2.0):
     return ActFun_atan.apply(input, init_thre, D, alpha)
 
 class ActFun_gaussian(torch.autograd.Function):
+    """Multi-synaptic activation function with Gaussian surrogate gradient"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, init_thre=1.0, D=4, alpha=0.4):
@@ -197,13 +210,13 @@ class ActFun_gaussian(torch.autograd.Function):
         thresholds = torch.arange(D, device=input.device).float() + init_thre
         grad_x = grad_input * (g_gaussian(input-thresholds[0],alpha)+g_gaussian(input-thresholds[1],alpha)+g_gaussian(input-thresholds[2],alpha)+g_gaussian(input-thresholds[3],alpha))
  
-        return grad_x, None, None    
+        return grad_x, None, None, None
     
 def act_fun_gaussian(input, init_thre=1.0, D=4, alpha=0.4):
     return ActFun_gaussian.apply(input, init_thre, D, alpha)
 
 class mem_update_MSF(nn.Module):
-    # MSF Layer
+    """MSF Layer implementation"""
     def __init__(self, decay=0.25, init_thre=1.0, D=4, surro_gate='rectangular'):
         super(mem_update_MSF, self).__init__()
         self.decay = decay
@@ -211,6 +224,7 @@ class mem_update_MSF(nn.Module):
         self.D = D
         self.surro_gate = surro_gate
         
+        # Dictionary of activation functions
         self.act_fun_dict = {
             'rectangular': act_fun_rectangular,
             'sigmoid': act_fun_sigmoid,
@@ -240,11 +254,11 @@ class mem_update_MSF(nn.Module):
             output[i] = spike
         return output
 
-
+# Spatio-temporal batch normalization layers
 class batch_norm_2d(nn.Module):
     def __init__(self, num_features, eps=1e-5, momentum=0.1):
         super(batch_norm_2d, self).__init__()
-        self.bn = BatchNorm3d1(num_features)  
+        self.bn = BatchNorm3d1(num_features)  # Spatio-temporal batch normalization
 
     def forward(self, input):
         y = (
@@ -286,8 +300,8 @@ class BatchNorm3d2(torch.nn.BatchNorm3d):
             nn.init.zeros_(self.bias)
 
 
-
 class BasicBlock(nn.Module):
+    """Basic residual block for spiking neural networks"""
     expansion: int = 1
 
     def __init__(
@@ -334,9 +348,9 @@ class BasicBlock(nn.Module):
                 )
             ),     
             batch_norm_2d1(planes * BasicBlock.expansion),
-            CSA(1, planes * BasicBlock.expansion, c_ratio=8),
+            CSA(1, planes * BasicBlock.expansion, c_ratio=8),  # Attention
         )
-        # shortc        
+        # shortcut connection        
         self.downsample = downsample
         self.stride = stride
 
@@ -354,7 +368,7 @@ class BasicBlock(nn.Module):
 
 
 class Bottle2neck(nn.Module):
-
+    """Bottle2neck block with multi-scale spiking convolutions and attention"""
     expansion: int = 4 
 
     def __init__(
@@ -374,7 +388,8 @@ class Bottle2neck(nn.Module):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         width = int(planes * (base_width / 64.0)) * groups
-        # Both self.conv2 and self.downsample layers downsample the input when stride != 1
+        
+        # First spiking convolutional layer (1x1)
         self.snn_conv1 = nn.Sequential(
             mem_update_MSF(),
             layer.SeqToANNContainer(
@@ -389,6 +404,7 @@ class Bottle2neck(nn.Module):
             ),            
             batch_norm_2d(width*scale),
         )        
+        
         if scale == 1:
           self.nums = 1
         else:
@@ -396,6 +412,7 @@ class Bottle2neck(nn.Module):
         if stype == 'stage':
             self.pool = nn.AvgPool3d(kernel_size=(1,3,3), stride = (1,stride,stride), padding=(0,1,1))
 
+        # Multi-scale 3x3 convolutions
         convs = []        
         for i in range(self.nums):
             convs.append(
@@ -417,6 +434,7 @@ class Bottle2neck(nn.Module):
             )
         self.convs = nn.ModuleList(convs)
 
+        # Final spiking convolutional layer (1x1) with attention
         self.snn_conv3 = nn.Sequential(
             mem_update_MSF(),
             layer.SeqToANNContainer(
@@ -430,7 +448,7 @@ class Bottle2neck(nn.Module):
                 )
             ),               
             batch_norm_2d1(planes * Bottle2neck.expansion),
-            CSA(1, planes * Bottle2neck.expansion, c_ratio=8),
+            CSA(1, planes * Bottle2neck.expansion, c_ratio=8),  # Attention
         )     
 
         self.downsample = downsample
@@ -444,6 +462,7 @@ class Bottle2neck(nn.Module):
         identity = x
         out = self.snn_conv1(x) 
 
+        # Multi-scale feature processing
         spx = torch.split(out, self.width, 2)
         for i in range(self.nums):
           if i==0 or self.stype=='stage':
@@ -463,6 +482,7 @@ class Bottle2neck(nn.Module):
         
         out = self.snn_conv3(out) 
 
+        # Residual connection
         if self.downsample is not None:
             identity = self.downsample(x)
 
@@ -508,6 +528,7 @@ class MHSANet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
 
+        # Initial convolution layer for RGB input (3 channels)
         self.conv1 = nn.Sequential(
                 layer.SeqToANNContainer(
                     nn.Conv2d(
@@ -522,14 +543,16 @@ class MHSANet(nn.Module):
                 batch_norm_2d(self.inplanes)
         )
 
-        self.maxpool = nn.MaxPool3d(kernel_size=(1,3,3),stride=(1,2,2),padding=(0,1,1))   ### timewindow>1时  multistep maxpool
+        self.maxpool = nn.MaxPool3d(kernel_size=(1,3,3),stride=(1,2,2),padding=(0,1,1))   
         self.mem_update = mem_update_MSF()
 
+        # ResNet-style layers with Bottle2neck blocks
         self.layer1 = self._make_layer(block, 64, layers[0], stride=1)
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2, dilate=replace_stride_with_dilation[0])
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2, dilate=replace_stride_with_dilation[1])
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2, dilate=replace_stride_with_dilation[2])
         
+        # Classification head
         self.fc = nn.Linear(512 * block.expansion, num_classes)
         self.dropout = nn.Dropout(p=0.2)
 
@@ -543,6 +566,7 @@ class MHSANet(nn.Module):
         stride: int = 1,
         dilate: bool = False,
     ) -> nn.Sequential:
+        """Create a layer with multiple blocks"""
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -588,24 +612,24 @@ class MHSANet(nn.Module):
 
 
     def _forward_impl(self, x: Tensor) -> Tensor:
-        # See note [TorchScript super()]
-        # torch.autograd.set_detect_anomaly(True)
-        
         input = (x.unsqueeze(0)).repeat(self.T, 1, 1, 1, 1)
 
+        # Initial feature extraction
         output = self.conv1(input) 
         output = self.maxpool(output.permute((1,2,0,3,4))) 
         output = output.permute((2,0,1,3,4))
 
+        # Feature extraction through ResNet layers
         output = self.layer1(output) 
         output = self.layer2(output) 
         output = self.layer3(output) 
         output = self.layer4(output) 
         output = self.mem_update(output)
 
+        # Global average pooling and classification
         output = F.adaptive_avg_pool3d(output, (None, 1, 1))
         output = output.view(output.size()[0], output.size()[1], -1)
-        output = output.sum(dim=0) / output.size()[0]
+        output = output.sum(dim=0) / output.size()[0]  # Temporal averaging
         output = self.dropout(output)
         output = self.fc(output)
 
@@ -615,16 +639,16 @@ class MHSANet(nn.Module):
         return self._forward_impl(x)
 
 
-
+# Model factory functions
 def MHSANet50_26w_4s(pretrained=False, **kwargs):
-
+    """Create MHSANet-50 with 26 base width and 4 scales"""
     model = MHSANet(Bottle2neck, [3, 4, 6, 3], baseWidth = 26, scale = 4, **kwargs)
 
     return model
 
 
 def MHSANet101_26w_4s(pretrained=False, **kwargs):
-
+    """Create MHSANet-101 with 26 base width and 4 scales"""
     model = MHSANet(Bottle2neck, [3, 4, 23, 3], baseWidth = 26, scale = 4, **kwargs)
 
     return model

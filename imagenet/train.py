@@ -73,7 +73,7 @@ parser.add_argument('--input-size', default=None, nargs=3, type=int,
                     metavar='N N N',
                     help='Input all image dimensions (d h w, e.g. --input-size 3 224 224), uses model default if empty')
 # Dataset / Model parameters
-parser.add_argument('-data-dir', metavar='DIR',default="/mnt/nvme1n1/flw/datasets/imagenet-1k",
+parser.add_argument('-data-dir', metavar='DIR',default="./imagenet1k/",
                     help='path to dataset')
 parser.add_argument('--dataset', '-d', metavar='NAME', default='imagenet',
                     help='dataset type (default: ImageFolder/ImageTar if empty)')

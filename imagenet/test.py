@@ -82,7 +82,7 @@ parser.add_argument('--patch-size', type=int, default=None, metavar='N',
 parser.add_argument('--mlp-ratio', type=int, default=None, metavar='N',
                     help='expand ration of embedding dimension in MLP block')
 # Dataset / Model parameters
-parser.add_argument('-data-dir', metavar='DIR', default="/mnt/nvme1n1/flw/datasets/imagenet-1k",
+parser.add_argument('-data-dir', metavar='DIR', default="./imagenet1k/",
                     help='path to dataset')
 parser.add_argument('--dataset', '-d', metavar='NAME', default='imagenet',
                     help='dataset type (default: ImageFolder/ImageTar if empty)')
