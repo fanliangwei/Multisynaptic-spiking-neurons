@@ -1,3 +1,7 @@
+# Signal Autoencoder Training for Spiking Neural Networks
+# This file implements spiking autoencoders for signal reconstruction
+# including both LIF and MSF neurons
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,10 +13,15 @@ import random
 import pandas as pd
 import os
 
+
 class ActFun(torch.autograd.Function):
+    """Custom activation function for LIF neurons"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, thresh=0.5, alpha=0.5):
+        """
+        Forward pass: Applies step function at threshold
+        """
         ctx.save_for_backward(input)
         ctx.thresh = thresh
         ctx.alpha = alpha
@@ -21,6 +30,9 @@ class ActFun(torch.autograd.Function):
     @staticmethod
     @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
+        """
+        Backward pass: Applies rectangular surrogate gradient
+        """
         (input,) = ctx.saved_tensors
         thresh = ctx.thresh
         alpha = ctx.alpha
@@ -33,7 +45,7 @@ def act_fun(input, thresh=0.5, alpha=0.5):
     return ActFun.apply(input, thresh, alpha)
 
 class mem_update(nn.Module):
-    # LIF Layer
+    """LIF (Leaky Integrate-and-Fire) Layer implementation"""
     def __init__(self, decay=0.25, thresh=0.5, alpha=0.5):
         super(mem_update, self).__init__()
         self.decay = decay
@@ -48,39 +60,57 @@ class mem_update(nn.Module):
         mem_old = 0
         for i in range(time_window):
             if i >= 1:
+                # Update membrane potential
                 mem = mem_old * self.decay * (1 - spike.detach()) + x[i]
             else:
                 mem = x[i]
+            # Generate spike if membrane potential exceeds threshold
             spike = act_fun(mem, self.thresh, self.alpha)
             mem_old = mem.clone()
             output[i] = spike
         return output
 
 
+# Surrogate gradient functions
 def g_window(x,alpha):
+    """Rectangular surrogate gradient"""
     temp = abs(x) < alpha
     return temp / (2 * alpha)
 
 def g_sigmoid(x,alpha):
+    """Sigmoid surrogate gradient"""
     sgax = (alpha*x).sigmoid()
     return alpha * (1-sgax) * sgax
 
 def g_atan(x,alpha):
+    """Arctangent surrogate gradient"""
     return alpha / (2 * (1 + ((np.pi / 2) * alpha * x)**2))
 
 def g_gaussian(x,alpha):
+    """Gaussian surrogate gradient"""
     return (1 / np.sqrt(2 * np.pi * alpha**2)) * torch.exp(-x**2 / (2 * alpha**2))
 
 
+# Multi-synaptic activation functions with different surrogate gradients
 class ActFun_rectangular(torch.autograd.Function):
+    """Multi-synaptic activation function with rectangular surrogate gradient"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, init_thre=0.5, D=4, alpha=0.5):
+        """
+        Forward pass: Multi-synaptic spike generation
+        Args:
+            input: Input tensor
+            init_thre: Initial threshold value
+            D: Number of synapses
+            alpha: Surrogate gradient parameter
+        """
         ctx.save_for_backward(input)
         ctx.init_thre = init_thre
         ctx.D = D
         ctx.alpha = alpha
         
+        # Create multiple thresholds
         thresholds = torch.arange(D, device=input.device).float() + init_thre
         out = input.ge(thresholds[0]).float() + input.ge(thresholds[1]).float() + input.ge(thresholds[2]).float() + input.ge(thresholds[3]).float()
         return out
@@ -88,6 +118,7 @@ class ActFun_rectangular(torch.autograd.Function):
     @staticmethod
     @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
+        """Backward pass with rectangular surrogate gradient"""
         (input,) = ctx.saved_tensors
         init_thre = ctx.init_thre
         D = ctx.D
@@ -95,6 +126,7 @@ class ActFun_rectangular(torch.autograd.Function):
         grad_input = grad_output.clone()
         
         thresholds = torch.arange(D, device=input.device).float() + init_thre
+        # Apply surrogate gradient for each threshold
         grad_x = grad_input * (g_window(input-thresholds[0],alpha)+g_window(input-(thresholds[1]),alpha)+g_window(input-(thresholds[2]),alpha)+g_window(input-(thresholds[3]),alpha))
  
         return grad_x, None, None, None
@@ -103,6 +135,7 @@ def act_fun_rectangular(input, init_thre=0.5, D=4, alpha=0.5):
     return ActFun_rectangular.apply(input, init_thre, D, alpha)
 
 class ActFun_sigmoid(torch.autograd.Function):
+    """Multi-synaptic activation function with sigmoid surrogate gradient"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, init_thre=0.5, D=4, alpha=4.0):
@@ -133,6 +166,7 @@ def act_fun_sigmoid(input, init_thre=0.5, D=4, alpha=4.0):
     return ActFun_sigmoid.apply(input, init_thre, D, alpha)
 
 class ActFun_atan(torch.autograd.Function):
+    """Multi-synaptic activation function with arctangent surrogate gradient"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, init_thre=0.5, D=4, alpha=2.0):
@@ -163,6 +197,7 @@ def act_fun_atan(input, init_thre=0.5, D=4, alpha=2.0):
     return ActFun_atan.apply(input, init_thre, D, alpha)
 
 class ActFun_gaussian(torch.autograd.Function):
+    """Multi-synaptic activation function with Gaussian surrogate gradient"""
     @staticmethod
     @torch.cuda.amp.custom_fwd
     def forward(ctx, input, init_thre=0.5, D=4, alpha=0.4):
@@ -193,14 +228,22 @@ def act_fun_gaussian(input, init_thre=0.5, D=4, alpha=0.4):
     return ActFun_gaussian.apply(input, init_thre, D, alpha)
 
 class mem_update_MSF(nn.Module):
-    # MSF Layer
+    """MSF Layer implementation"""
     def __init__(self, decay=0.25, init_thre=0.5, D=4, surro_gate='rectangular'):
+        """
+        Args:
+            decay: Membrane potential decay factor
+            init_thre: Initial firing threshold
+            D: Number of synapses
+            surro_gate: Type of surrogate gradient ('rectangular', 'sigmoid', 'atan', 'gaussian')
+        """
         super(mem_update_MSF, self).__init__()
         self.decay = decay
         self.init_thre = init_thre
         self.D = D
         self.surro_gate = surro_gate
         
+        # Dictionary of available activation functions
         self.act_fun_dict = {
             'rectangular': act_fun_rectangular,
             'sigmoid': act_fun_sigmoid,
@@ -209,36 +252,46 @@ class mem_update_MSF(nn.Module):
         }
 
     def forward(self, x):
+        """
+        Forward pass through MSF layer
+        Returns:
+            output: Spike trains
+        """
         time_window = x.size()[0] ### set timewindow
         mem = torch.zeros_like(x[0]).to(x.device)
         spike = torch.zeros_like(x[0]).to(x.device)
         output = torch.zeros_like(x)
         mem_old = 0
         
-        # select the activation function
+        # Select the activation function based on surrogate gate type
         act_fun = self.act_fun_dict.get(self.surro_gate, act_fun_rectangular)
         
         for i in range(time_window):
             if i >= 1:
+                # Update membrane potential
                 mask = spike > 0
                 mem = mem_old * self.decay * (1 - mask.float()) + x[i]
             else:
                 mem = x[i]
-            # multi-threshold firing function
+            # Multi-threshold firing function
             spike = act_fun(mem, self.init_thre, self.D)
             mem_old = mem.clone()
             output[i] = spike
         return output
 
 
-
+# Signal generation functions
 def generate_variable_sine_wave(A_func, T_func, phase, timepoint=100):
-    """Generate sine signals with continuously varying periods and amplitudes
+    """
+    Generate sine signals with continuously varying periods and amplitudes
     
-    A_func: A function that returns amplitude A(x) at the corresponding position
-    T_func: A function that returns period T(x) at the corresponding position
-    phase: Signal phase
-    timepoint: Total number of time points
+    Args:
+        A_func: Function that returns amplitude A(x) at corresponding position
+        T_func: Function that returns period T(x) at corresponding position
+        phase: Signal phase
+        timepoint: Total number of time points
+    
+    Returns: Generated sine wave signal
     """
     x = np.arange(0, timepoint)
     
@@ -251,87 +304,128 @@ def generate_variable_sine_wave(A_func, T_func, phase, timepoint=100):
     
     return torch.tensor(y, dtype=torch.float32).unsqueeze(0)
 
-# Example: Amplitude A varies over time as a linear function, period T varies as a sine function
+# Example parameter functions for varying signals
 A_func = lambda x: 1 + 3 * np.sin(0.1 * x)  # Amplitude varies between 1 and 4
 T_func = lambda x: 10 + 5 * np.cos(0.05 * x)  # Period varies between 10 and 15
 
 
 def generate_variable_square_wave(T_func, phase, timepoint=100):
-    """Generate square wave signals with continuously varying periods and amplitudes
+    """
+    Generate square wave signals with continuously varying periods
     
-    A_func: A function that returns amplitude A(x) at the corresponding position
-    T_func: A function that returns period T(x) at the corresponding position
-    phase: Signal phase
-    timepoint: Total number of time points
+    Args:
+        T_func: Function that returns period T(x) at corresponding position
+        phase: Signal phase
+        timepoint: Total number of time points
+    
+    Returns: Generated square wave signal
     """
     x = np.arange(0, timepoint)
     
-    # Calculate amplitude and period that change over time
+    # Calculate period that changes over time
     T_values = T_func(x)
     
-    # Generate periodic square wave signal
-    y = np.sign(np.sin(2 * np.pi * 1/T_values * x + phase))  # Use sine wave to convert to square wave
+    # Generate periodic square wave signal using sign of sine wave
+    y = np.sign(np.sin(2 * np.pi * 1/T_values * x + phase))
     
-    # Adjust amplitude, intensity between 0 and 1
-    y = (y + 1) / 2  # Adjust signal range to [0, 1]
-    
-    # Adjust intensity according to amplitude A(x)
-    # y *= A_values
+    # Adjust amplitude to range [0, 1]
+    y = (y + 1) / 2
     
     return torch.tensor(y, dtype=torch.float32).unsqueeze(0)
 
-# Example: Amplitude A varies over time as a linear function, period T varies as a sine function
+# Example parameter functions (same as above)
 A_func = lambda x: 1 + 3 * np.sin(0.1 * x)  # Amplitude varies between 1 and 4
 T_func = lambda x: 10 + 5 * np.cos(0.05 * x)  # Period varies between 10 and 15
 
 
-# 1. Create sine signal
 def generate_sine_wave(A, T, phase, timepoint=100):
-    """Generate sine signal with different amplitude A, period T, and phase"""
-
+    """
+    Generate sine signal with fixed amplitude A, period T, and phase
+    
+    Args:
+        A: Amplitude
+        T: Period
+        phase: Phase shift
+        timepoint: Number of time points
+    
+    Returns: Generated sine wave signal
+    """
     x = np.arange(0, timepoint)
     y = A * np.sin(2 * np.pi * 1/T * x + phase)
     return torch.tensor(y, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
 
-# Create square wave signal
 def generate_square_wave(A, T, phase, timepoint=100):
-    """Generate periodic square wave signal with different amplitude A, period T, and phase"""
+    """
+    Generate periodic square wave signal with fixed amplitude A, period T, and phase
+    
+    Args:
+        A: Amplitude
+        T: Period
+        phase: Phase shift
+        timepoint: Number of time points
+    
+    Returns: Generated square wave signal
+    """
     x = np.arange(0, timepoint)
     
-    # Calculate periodic square wave signal using sine signals to generate square waves (via np.sign or torch.sign)
+    # Generate square wave using sign of sine wave
     y = np.sign(np.sin(2 * np.pi * 1/T * x + phase))
     
-    # Adjust intensity (A controls amplitude)
-    y = A * (y + 1) / 2  # Normalize signal to [0, A] range
+    # Scale amplitude and normalize to [0, A] range
+    y = A * (y + 1) / 2
     
     return torch.tensor(y, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
 
-# 2. Define Spiking Autoencoder model
 class Snn_Autoencoder(nn.Module):
+    """
+    Spiking Autoencoder
+    Implements encoder-decoder architecture with spiking neurons for signal reconstruction
+    """
     def __init__(self, input_size, hidden_size, activation_type='MSF'):
+        """
+        Initialize SNN Autoencoder
+        
+        Args:
+            input_size: Input dimension size
+            hidden_size: Hidden layer size (bottleneck dimension)
+            activation_type: Type of spiking activation ('LIF' or 'MSF')
+        """
         super(Snn_Autoencoder, self).__init__()
         self.fc1 = layer.SeqToANNContainer(nn.Linear(input_size, hidden_size))  # Encoder layer
         
         # Choose activation function based on parameter
         if activation_type == 'LIF':
-            self.act = mem_update()  # LIF 
+            self.act = mem_update()  # LIF neurons
         else:  # Default to MSF
-            self.act = mem_update_MSF()  # MSF
+            self.act = mem_update_MSF()  # MSF neurons
             
         self.fc2 = layer.SeqToANNContainer(nn.Linear(hidden_size, input_size))  # Decoder layer
     
     def forward(self, x):
-        encoded = self.act(self.fc1(x))  # Encoding
+        encoded = self.act(self.fc1(x))  # Encoding with spiking activation
         decoded = self.fc2(encoded)  # Decoding
         return decoded
 
 
-# Modify training function, test after each epoch, record the best model
 def train_model(model, train_data, test_data, epochs, batch_size, learning_rate, device='cpu', model_prefix='', experiment_name=''):
+    """
+    Train the autoencoder model
+    
+    Args:
+        model: SNN autoencoder model
+        train_data: Training dataset
+        test_data: Testing dataset
+        epochs: Number of training epochs
+        batch_size: Training batch size
+        learning_rate: Learning rate for optimizer
+        device: Training device ('cpu' or 'cuda')
+        model_prefix: Prefix for saved model files
+        experiment_name: Experiment name for creating save directories
+    """
     model.to(device)
-    criterion = nn.MSELoss()
+    criterion = nn.MSELoss()  # Mean Squared Error loss
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
+    scheduler = CosineAnnealingLR(optimizer, T_max=epochs)  # Cosine annealing scheduler
     
     # Record training and testing losses
     train_losses = []
@@ -349,7 +443,7 @@ def train_model(model, train_data, test_data, epochs, batch_size, learning_rate,
         model.train()
         epoch_losses = []
         
-        # Create mini-batches
+        # Create mini-batches with random shuffling
         indices = np.random.permutation(len(train_data))
         for start_idx in range(0, len(train_data), batch_size):
             batch_indices = indices[start_idx:start_idx + batch_size]
@@ -362,11 +456,11 @@ def train_model(model, train_data, test_data, epochs, batch_size, learning_rate,
             optimizer.zero_grad()
             output = model(batch)
             
-            # Calculate loss
+            # Calculate reconstruction loss
             loss = criterion(output, batch)
             epoch_losses.append(loss.item())
             
-            # Backward propagation
+            # Backward propagation and optimization
             loss.backward()
             optimizer.step()
         
@@ -381,7 +475,7 @@ def train_model(model, train_data, test_data, epochs, batch_size, learning_rate,
         test_loss = evaluate_model(model, test_data, criterion, device)
         test_losses.append(test_loss)
 
-        # Check if it's the best model
+        # Check if current model is the best so far
         if test_loss < best_test_loss:
             best_test_loss = test_loss
             best_epoch = epoch
@@ -401,12 +495,21 @@ def train_model(model, train_data, test_data, epochs, batch_size, learning_rate,
     
     return train_losses, test_losses, best_model_path, last_model_path, best_epoch
 
-# Add evaluation function
 def evaluate_model(model, test_data, criterion, device='cpu'):
+    """
+    Evaluate model performance on test data
+    
+    Args:
+        model: Trained model
+        test_data: Test dataset
+        criterion: Loss function
+        device: Evaluation device
+    """
     model.eval()
     total_loss = 0.0
     with torch.no_grad():
         for test_signal in test_data:
+            # Prepare test input
             test_input = test_signal.unsqueeze(-1).unsqueeze(0).permute(2, 0, 1, 3).to(device)
             output = model(test_input)
             loss = criterion(output, test_input).item()
@@ -414,8 +517,16 @@ def evaluate_model(model, test_data, criterion, device='cpu'):
     
     return total_loss / len(test_data)
 
-# Test model and calculate reconstruction error
 def test_model(model, test_signals, device='cpu'):
+    """
+    Test model and calculate reconstruction error for each signal
+    
+    Args:
+        model: Trained model
+        test_signals: List of test signals
+        device: Testing device
+    
+    """
     model.eval()
     criterion = nn.MSELoss()
     reconstruction_errors = []
@@ -426,7 +537,7 @@ def test_model(model, test_signals, device='cpu'):
             # Prepare test data
             test_input = test_signal.unsqueeze(-1).unsqueeze(0).permute(2, 0, 1, 3).to(device)
             
-            # Use model to reconstruct signal
+            # Reconstruct signal using model
             reconstructed = model(test_input)
             
             # Calculate reconstruction error
@@ -438,8 +549,17 @@ def test_model(model, test_signals, device='cpu'):
 
     return reconstructed_signals, reconstruction_errors
 
-# Visualize training and testing losses
 def plot_training_history(train_losses, test_losses, best_epoch, signal_type, experiment_name=''):
+    """
+    Visualize training and testing loss curves
+    
+    Args:
+        train_losses: List of training losses per epoch
+        test_losses: List of testing losses per epoch
+        best_epoch: Epoch number of best model
+        signal_type: Type of signal ('sine' or 'square')
+        experiment_name: Experiment name for saving plots
+    """
     plt.figure(figsize=(12, 6))
     plt.plot(train_losses, label='Training Loss')
     plt.plot(test_losses, label='Testing Loss')
@@ -458,23 +578,26 @@ def plot_training_history(train_losses, test_losses, best_epoch, signal_type, ex
 
 def generate_datasets(n_train=100, n_test=100, signal_type='sine'):
     """
-    Generate training and testing datasets
-    signal_type: 'sine' for sine waves only, 'square' for square waves only
+    Generate training and testing datasets with different parameter ranges
+    
+    Args:
+        n_train: Number of training samples per parameter combination
+        n_test: Number of testing samples per parameter combination
+        signal_type: 'sine' for sine waves only, 'square' for square waves only
     """
     # Set random seed for reproducibility
     random.seed(42)
     np.random.seed(42)
     
     # Training data parameter ranges
-    A_train = [random.uniform(1.0, 4.0) for _ in range(n_train)]
-    T_train = list(range(8, 65))
-
-    phase_train = [random.uniform(0, 2*np.pi) for _ in range(8)]
+    A_train = [random.uniform(1.0, 4.0) for _ in range(n_train)]  # Amplitude range
+    T_train = list(range(8, 65))  # Period range
+    phase_train = [random.uniform(0, 2*np.pi) for _ in range(8)]  # Phase range
     
-    # Testing data parameter ranges - use different parameters to test generalization capability
+    # Testing data parameter ranges - use different parameters to test generalization
     A_test = [random.uniform(1.0, 4.0) for _ in range(n_test)]
-    T_test = [8,16,24,32,40,48,56,64]
-    phase_test = [np.pi/2, np.pi, 3*np.pi/2, 2*np.pi]
+    T_test = [8,16,24,32,40,48,56,64]  # Specific test periods
+    phase_test = [np.pi/2, np.pi, 3*np.pi/2, 2*np.pi]  # Specific test phases
     
     # Generate training data
     train_data = []
@@ -510,10 +633,20 @@ def generate_datasets(n_train=100, n_test=100, signal_type='sine'):
 
 
 def plot_varying_examples(signal_type, test_model, device='cpu', experiment_name=''):
+    """
+    Test model on signals with continuously varying parameters and save results
+    
+    Args:
+        signal_type: Type of signal to test ('sine' or 'square')
+        test_model: Trained model for testing
+        device: Testing device
+        experiment_name: Experiment name for saving results
+    """
+    # Define parameter variation functions
     a_scale = 3
     t_scale = 5
-    A_func = lambda x: 1 + a_scale * np.sin(0.1 * x)
-    T_func = lambda x: 80 + t_scale * np.cos(0.05 * x)
+    A_func = lambda x: 1 + a_scale * np.sin(0.1 * x)  # Varying amplitude
+    T_func = lambda x: 80 + t_scale * np.cos(0.05 * x)  # Varying period
         
     if signal_type == 'sine':
         # Generate sine wave with varying parameters
@@ -524,10 +657,8 @@ def plot_varying_examples(signal_type, test_model, device='cpu', experiment_name
 
     with torch.no_grad():
         test_signal = varying_signal.reshape(300,1,1,1)
-
         reconstructed_signal = test_model(test_signal.to(device))
     
-    # Extract original signal and reconstructed signal data
     original = test_signal.numpy().flatten()
     reconstructed = reconstructed_signal.cpu().numpy().flatten()
     
@@ -554,7 +685,7 @@ def plot_varying_examples(signal_type, test_model, device='cpu', experiment_name
     print(f'Varying parameter signal data saved to {csv_path}')
     print(f'Reconstruction MSE error: {mse_error:.6f}')
 
-    # Plotting section remains the same
+    # Plot reconstruction results
     plt.figure(figsize=(10, 5))
     plt.plot(original, label="Original Signal")
     plt.plot(reconstructed, label="Reconstructed Signal", linestyle='dashed')
@@ -566,8 +697,17 @@ def plot_varying_examples(signal_type, test_model, device='cpu', experiment_name
     plt.savefig(save_path)
     plt.show()
 
-# Visualize reconstruction results
 def plot_reconstruction_examples(original_signals, reconstructed_signals, test_params, n_examples=5, experiment_name=''):
+    """
+    Visualize reconstruction results for selected test examples
+    
+    Args:
+        original_signals: List of original test signals
+        reconstructed_signals: List of reconstructed signals
+        test_params: List of signal parameters for each test case
+        n_examples: Number of examples to display
+        experiment_name: Experiment name for saving plots
+    """
     # Randomly select n_examples examples
     indices = np.random.choice(len(original_signals), n_examples, replace=False)
     
@@ -578,7 +718,7 @@ def plot_reconstruction_examples(original_signals, reconstructed_signals, test_p
         original = original_signals[idx].numpy().flatten()
         reconstructed = reconstructed_signals[idx].numpy().flatten()
         
-        # Get signal parameters
+        # Get signal parameters for title
         signal_type, *params = test_params[idx]
         if signal_type == 'sine' or signal_type == 'square':
             A, T, phase = params
@@ -601,25 +741,26 @@ def plot_reconstruction_examples(original_signals, reconstructed_signals, test_p
     plt.show()
 
 
-# Main function
 def main(signal_type='sine', experiment_name='', input_size=1, hidden_size=1, epochs=30, batch_size=32, learning_rate=0.001, activation_type='MSF'):
     """
     Main function for training and testing signal reconstruction models
-    signal_type: 'sine' for sine wave, 'square' for square wave
-    experiment_name: Experiment name, used to create folders for saving results
-    input_size: Input dimension size
-    hidden_size: Hidden layer size
-    epochs: Number of training epochs
-    batch_size: Training batch size
-    learning_rate: Learning rate for optimizer
-    activation_type: Type of activation function: 'LIF' or 'MSF'
+    
+    Args:
+        signal_type: 'sine' for sine wave, 'square' for square wave
+        experiment_name: Experiment name, used to create folders for saving results
+        input_size: Input dimension size
+        hidden_size: Hidden layer size (encoding bottleneck)
+        epochs: Number of training epochs
+        batch_size: Training batch size
+        learning_rate: Learning rate for optimizer
+        activation_type: Type of spiking activation function: 'LIF' or 'MSF'
     """
     # Set random seed to ensure reproducibility
     random.seed(42)
     np.random.seed(42)
     torch.manual_seed(42)
     
-    # Set device
+    # Set computing device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
@@ -628,7 +769,7 @@ def main(signal_type='sine', experiment_name='', input_size=1, hidden_size=1, ep
         os.makedirs(experiment_name)
         print(f"Created experiment directory: {experiment_name}")
     
-    # Model parameters are now passed as function arguments
+    # Display model parameters
     print(f"Model parameters: input_size={input_size}, hidden_size={hidden_size}, epochs={epochs}, batch_size={batch_size}, learning_rate={learning_rate}, activation_type={activation_type}")
     
     if signal_type == 'sine':
@@ -718,7 +859,7 @@ def main(signal_type='sine', experiment_name='', input_size=1, hidden_size=1, ep
     else:
         print(f"Error: Unsupported signal type '{signal_type}'. Please use 'sine' or 'square'.")
 
-# Use command line arguments to run the program
+
 if __name__ == "__main__":
     import argparse
     
@@ -726,9 +867,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train SNN signal autoencoder')
     parser.add_argument('--signal_type', type=str, default='sine', choices=['sine', 'square'],
                         help='Signal type to train: sine or square')
-    parser.add_argument('--experiment_name', type=str, default='sine_snn_autoencoder_h32-MSF-t300',
+    parser.add_argument('--experiment_name', type=str, default='sine_snn_autoencoder_h32-MSF',
                         help='Experiment name, used to create folders for saving results')
-    # Add new command line arguments for model parameters
+    # Model parameter command line arguments
     parser.add_argument('--input_size', type=int, default=1,
                         help='Input dimension size')
     parser.add_argument('--hidden_size', type=int, default=32,
@@ -743,10 +884,8 @@ if __name__ == "__main__":
     parser.add_argument('--activation_type', type=str, default='MSF', choices=['LIF', 'MSF'],
                         help='Spiking activation function type: LIF or MSF')
     
-    # Parse command line arguments
     args = parser.parse_args()
     
-    # Run main function with all parameters
     main(
         signal_type=args.signal_type, 
         experiment_name=args.experiment_name,
