@@ -1,7 +1,10 @@
-# MSF neurons Implementation
+# A multisynaptic spiking neuron for simultaneously encoding spatiotemporal dynamics
+Liangwei Fan, Hui Shen, Xiangkai Lian, Yulin Li, and Dewen Hu
 
-This code implements the MSF neurons for various tasks. We select some typical training codes for tasks in the paper to present.
+## Abstract
+Spiking neural networks (SNNs) are biologically more plausible and computationally more powerful than artificial neural networks due to their intrinsic temporal dynamics. However, vanilla spiking neurons struggle to simultaneously encode spatiotemporal dynamics of inputs. Inspired by biological multisynaptic connections, we propose the Multi-Synaptic Firing (MSF) neuron, where an axon can establish multiple synapses with different thresholds on a postsynaptic neuron. MSF neurons jointly encode spatial intensity via firing rates and temporal dynamics via spike timing, and generalize Leaky Integrate-and-Fire (LIF) and ReLU neurons as special cases. We derive optimal threshold selection and parameter optimization criteria for surrogate gradients, enabling scalable deep MSF-based SNNs without performance degradation. Extensive experiments across various benchmarks show that MSF neurons significantly outperform LIF neurons in accuracy while preserving low power, low latency, and high execution efficiency, and surpass ReLU neurons in event-driven tasks. Overall, this work advances neuromorphic computing toward real-world spatiotemporal applications.
 
+This repository provides the official implementation of [A multisynaptic spiking neuron for simultaneously encoding spatiotemporal dynamics](https://doi.org/10.1038/s41467-025-62251-6). It includes the MSF neuron model applied to various tasks, with selected training scripts for representative tasks featured in the paper.
 
 ## 📁 Datasets Preparation
 | Dataset      | Source                                                                                     |
@@ -111,6 +114,11 @@ Download the trained model first [MHSANet-50](https://drive.google.com/file/d/1z
 cd coco
 python tools/eval.py --test
 ```
+
+## Citation
+If you find this repo useful, please cite this paper:
+
+Fan, L., Shen, H., Lian, X. et al. A multisynaptic spiking neuron for simultaneously encoding spatiotemporal dynamics. Nat Commun 16, 7155 (2025). https://doi.org/10.1038/s41467-025-62251-6
 
 
 ## Acknowledgement
